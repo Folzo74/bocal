@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Bocal</string>
+    <string name="ecran_robinet_titre">Le robinet</string>
+    <string name="ecran_robinet_etat_aucun_bocal">Aucun bocal pour l\'instant.</string>
+    <string name="ecran_robinet_bouton_remplir">Remplir un bocal maintenant</string>
+</resources>

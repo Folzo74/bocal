@@ -1,0 +1,25 @@
+*.iml
+.gradle/
+/local.properties
+.idea/
+.DS_Store
+build/
+/captures
+.externalNativeBuild
+.cxx/
+.kotlin/
+
+# Secrets et clés de signature — jamais dans git
+*.jks
+*.keystore
+*.p12
+*.pem
+/secrets/
+*.env
+local.properties.*.example.local
+
+# Logs et artefacts de build
+*.log
+app/release/
+*.apk
+*.aab

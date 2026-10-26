@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Versions figées volontairement pour android-35 (M0-B / atelier M0-A) :
+         les checks "une version plus récente existe" ne sont pas des défauts ici. -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+    <issue id="NewerVersionAvailable" severity="ignore" />
+    <!-- targetSdk 35 est une exigence figée du cahier M0-B, pas une dette. -->
+    <issue id="OldTargetApi" severity="ignore" />
+    <!-- minSdk 30 >= 26 : le qualificateur -v26 du dossier mipmap est redondant mais
+         requis par AAPT2 (dossier "mipmap-anydpi" nu non résolu). -->
+    <issue id="ObsoleteSdkInt" severity="ignore" />
+</lint>

@@ -1,0 +1,182 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (assembleDebug)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages (android-35, build-tools 35.0.0)
+        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Assemble debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages (android-35, build-tools 35.0.0)
+        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run lint
+        run: ./gradlew lint
+
+      - name: Upload lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: app/build/reports/lint-results-*.html
+          if-no-files-found: warn
+
+  test:
+    name: Tests unitaires
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages (android-35, build-tools 35.0.0)
+        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: app/build/reports/tests/**
+          if-no-files-found: warn
+
+  reproducible:
+    name: Build reproductible (ebauche)
+    runs-on: ubuntu-latest
+    env:
+      # Epoch fixe (2025-01-01T00:00:00Z) pour les DEUX builds : meme entree,
+      # deux executions propres. L'ebauche rapporte, elle ne bloque pas (M2-A
+      # portera la preuve stricte F-Droid).
+      SOURCE_DATE_EPOCH: '1735689600'
+      APK: app/build/outputs/apk/debug/app-debug.apk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages (android-35, build-tools 35.0.0)
+        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          add-job-summary-as-pr-comment: never
+
+      - name: Build 1 (SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH, sans cache de build)
+        run: |
+          rm -rf app/build build
+          ./gradlew --stop || true
+          ./gradlew --no-build-cache assembleDebug
+          sha256sum "$APK"
+          sha256sum "$APK" | tee /tmp/sha256-build1.txt
+
+      - name: Clean total entre les deux builds
+        run: |
+          rm -rf app/build build
+          ./gradlew --stop || true
+
+      - name: Build 2 (SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH, sans cache de build)
+        run: |
+          ./gradlew --no-build-cache assembleDebug
+          sha256sum "$APK"
+          sha256sum "$APK" | tee /tmp/sha256-build2.txt
+
+      - name: Comparer les sha256 (rapport, jamais bloquant)
+        run: |
+          SHA1=$(cut -d' ' -f1 /tmp/sha256-build1.txt)
+          SHA2=$(cut -d' ' -f1 /tmp/sha256-build2.txt)
+          echo "sha256 build 1 : $SHA1"
+          echo "sha256 build 2 : $SHA2"
+          {
+            echo "## Build reproductible (ebauche)"
+            echo ""
+            echo "| Build | sha256 |"
+            echo '|---|---|'
+            echo "| 1 | \`$SHA1\` |"
+            echo "| 2 | \`$SHA2\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$SHA1" = "$SHA2" ]; then
+            echo "REPRO: IDENTIQUE"
+            echo '**Verdict : `REPRO: IDENTIQUE`**' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "REPRO: DIFFERENT"
+            echo '**Verdict : `REPRO: DIFFERENT`** (ebauche — a analyser en M2-A)' >> "$GITHUB_STEP_SUMMARY"
+            echo '--- diagnostic contenu des APK ---'
+            unzip -l "$APK" || true
+          fi
+        shell: bash
