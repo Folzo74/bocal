@@ -102,7 +102,10 @@ jobs:
             [ -n "$CID" ] && break
             sleep 2
           done
-          docker exec "$CID" php occ maintenance:install \
+          # occ sous www-data (et pas root) : sinon config.php + base sqlite sont créés
+          # root:root 0640 et Apache (www-data) ne peut pas les lire -> status.php ne
+          # passe jamais a installed:true (Permission denied dans Config.php#221).
+          docker exec -u www-data "$CID" php occ maintenance:install \
             --database sqlite \
             --admin-user "$NEXTCLOUD_ADMIN_USER" \
             --admin-pass "$NEXTCLOUD_ADMIN_PASSWORD" || true
