@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
             val succes: StoredConnection?,
             val echec: NextcloudClient.LoginResult.Failure.Kind?,
             val deconnexion: Boolean,
+            val deconnexionEchec: Boolean = false,
         )
 
         fun registrerEcran(ecran: MainActivity) {
@@ -162,10 +163,11 @@ class MainActivity : AppCompatActivity() {
         succes: StoredConnection?,
         echec: NextcloudClient.LoginResult.Failure.Kind?,
         deconnexion: Boolean,
+        deconnexionEchec: Boolean = false,
     ) {
         synchronized(verrou) {
             enTravail = false
-            resultatEnAttente = Resultat(succes, echec, deconnexion)
+            resultatEnAttente = Resultat(succes, echec, deconnexion, deconnexionEchec)
         }
         pupitre.post { livrerAuFilActuel() }
     }
@@ -238,14 +240,23 @@ class MainActivity : AppCompatActivity() {
         synchronized(verrou) { enTravail = true }
         executor.execute {
             // Même règle que la connexion : jamais de verrouillage UI permanent.
+            // Un échec ici (wipe Keystore qui leve) n'est PAS un refus serveur :
+            // le drapeau deconnexionEchec porte la verite, pas un Kind trompeur.
             val echec = runCatching { manager.disconnect() }.isFailure
-            travailTermine(null, if (echec) NextcloudClient.LoginResult.Failure.Kind.SERVER else null,
-                deconnexion = !echec)
+            travailTermine(null, null, deconnexion = !echec, deconnexionEchec = echec)
         }
     }
 
     private fun appliquerResultat(resultat: Resultat) {
         when {
+            resultat.deconnexionEchec -> {
+                // Le purge a pu echouer : la connexion existe peut-etre encore cote
+                // local. On recharge la verite locale (bouton/formulaire coherents)
+                // puis on rend le message propre, pas un faux « refus du serveur ».
+                afficherEtatEnregistre()
+                etatConnexion.text = getString(R.string.connexion_erreur_deconnexion)
+            }
+
             resultat.deconnexion || (resultat.succes == null && resultat.echec == null) -> {
                 etatConnexion.text = getString(R.string.connexion_etat_deconnecte)
                 rendreFormulaireConnexion(true)
@@ -270,6 +281,7 @@ class MainActivity : AppCompatActivity() {
                     NextcloudClient.LoginResult.Failure.Kind.AUTH_REJECTED -> getString(R.string.connexion_erreur_auth)
                     NextcloudClient.LoginResult.Failure.Kind.NETWORK -> getString(R.string.connexion_erreur_reseau)
                     NextcloudClient.LoginResult.Failure.Kind.SERVER -> getString(R.string.connexion_erreur_serveur)
+                    NextcloudClient.LoginResult.Failure.Kind.TIMEOUT -> getString(R.string.connexion_erreur_timeout)
                     null -> getString(R.string.connexion_erreur_reseau)
                 }
                 rendreFormulaireConnexion(true)
@@ -304,9 +316,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Joli nom pour l'humain : la fin du chemin choisi, pas l'URI technique. */
-    private fun libelleDossier(uri: Uri): String =
-        Uri.decode(uri.pathSegments.getOrNull(uri.pathSegments.indexOf("tree") + 1) ?: uri.toString())
-            .substringAfterLast(':')
+    private fun libelleDossier(uri: Uri): String = libelleDossierDepuisUri(uri)
 
     private fun rendreFormulaireConnexion(actif: Boolean) {
         champUrl.isEnabled = actif
@@ -314,4 +324,23 @@ class MainActivity : AppCompatActivity() {
         champMotDePasse.isEnabled = actif
         boutonConnexion.isEnabled = actif
     }
+}
+
+/**
+ * Joli nom pour l'humain : la fin du chemin choisi, pas l'URI technique.
+ * Les URI SAF d'un arbre ont deux formes courantes :
+ *  - `…/tree/<volume>…` (le nom est après le « : » du volume) ;
+ *  - `…/tree/<volume>/document/<docId>` (le picker prépositionné rend le volume
+ *    racine `primary:` + le docId choisi) — c'est alors le **docId** qui porte le
+ *    nom ; le segment volume seul donnerait une chaîne vide (« primary: » -> « »).
+ * On privilégie donc le docId, puis le volume, avec un repli jamais vide (l'URI).
+ */
+internal fun libelleDossierDepuisUri(uri: Uri): String {
+    val segments = uri.pathSegments
+    val brut = segments.indexOf("document").takeIf { it >= 0 }?.let { segments.getOrNull(it + 1) }
+        ?: segments.indexOf("tree").takeIf { it >= 0 }?.let { segments.getOrNull(it + 1) }
+        ?: uri.lastPathSegment
+        ?: uri.toString()
+    val decode = Uri.decode(brut)
+    return decode.substringAfterLast(':').ifBlank { decode.trimEnd(':').ifBlank { Uri.decode(uri.toString()) } }
 }

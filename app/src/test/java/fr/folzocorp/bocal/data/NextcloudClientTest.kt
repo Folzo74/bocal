@@ -220,7 +220,7 @@ class NextcloudClientTest {
         val motDePasse = "S3cret!".toCharArray()
         val result = NextcloudClient(lent, delaiGlobalMs = 30).login("https://cloud.example", "u", motDePasse)
         val failure = result as NextcloudClient.LoginResult.Failure
-        assertEquals(NextcloudClient.LoginResult.Failure.Kind.SERVER, failure.kind)
+        assertEquals(NextcloudClient.LoginResult.Failure.Kind.TIMEOUT, failure.kind)
         assertTrue("le mot de passe doit être effacé même sur délai dépassé",
             motDePasse.all { it == '\u0000' })
     }

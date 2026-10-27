@@ -18,6 +18,8 @@
     <string name="connexion_erreur_auth">Utilisateur ou mot de passe refusé par le serveur.</string>
     <string name="connexion_erreur_reseau">Impossible de joindre le Nextcloud (réseau ?).</string>
     <string name="connexion_erreur_serveur">Le serveur a refusé la création du token d\'application.</string>
+    <string name="connexion_erreur_timeout">Le serveur n\'a pas répondu à temps. Vérifie la connexion et réessaie.</string>
+    <string name="connexion_erreur_deconnexion">Déconnexion interrompue (réseau ?). Réessaie.</string>
     <string name="dossier_titre">Dossier WhatsApp (lecture seule)</string>
     <string name="dossier_bouton">Choisir le dossier WhatsApp</string>
     <string name="dossier_bouton_oublier">Oublier ce dossier</string>

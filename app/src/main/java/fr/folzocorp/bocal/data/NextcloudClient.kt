@@ -36,7 +36,7 @@ class NextcloudClient(
             val kind: Kind,
             val httpStatus: Int = 0,
         ) : LoginResult() {
-            enum class Kind { BAD_URL, NOT_NEXTCLOUD, AUTH_REJECTED, NETWORK, SERVER }
+            enum class Kind { BAD_URL, NOT_NEXTCLOUD, AUTH_REJECTED, NETWORK, SERVER, TIMEOUT }
         }
     }
 
@@ -64,7 +64,8 @@ class NextcloudClient(
             }
             val basic = basicAuthHeader(user, password)
             if (delaiDepasse(echeance)) {
-                return LoginResult.Failure(LoginResult.Failure.Kind.SERVER)
+                // Le serveur n'a rien refusé : c'est notre garde-fou de 45 s qui coupe.
+                return LoginResult.Failure(LoginResult.Failure.Kind.TIMEOUT)
             }
             val created = transport.execute(
                 HttpRequest(
@@ -136,7 +137,7 @@ class NextcloudClient(
         echeance: Long,
     ): LoginResult {
         if (delaiDepasse(echeance)) {
-            return LoginResult.Failure(LoginResult.Failure.Kind.SERVER)
+            return LoginResult.Failure(LoginResult.Failure.Kind.TIMEOUT)
         }
         val created = transport.execute(
             HttpRequest(
@@ -166,7 +167,7 @@ class NextcloudClient(
 
     private fun finishLogin(baseUrl: String, user: String, token: String, echeance: Long): LoginResult {
         if (delaiDepasse(echeance)) {
-            return LoginResult.Failure(LoginResult.Failure.Kind.SERVER)
+            return LoginResult.Failure(LoginResult.Failure.Kind.TIMEOUT)
         }
         val verified = transport.execute(
             HttpRequest(
