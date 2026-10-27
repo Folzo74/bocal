@@ -23,7 +23,10 @@ runs:
 
     - name: Install SDK packages (platform + build-tools figées)
       run: |
-        yes | sdkmanager "platforms;${{ inputs.platform }}" "build-tools;${{ inputs.build-tools }}" > /dev/null
+        # yes via process substitution : sous pipefail, « yes | sdkmanager » fait
+        # echouer le job quand sdkmanager termine tot (paquets deja installes) —
+        # yes meurt alors en SIGPIPE (broken pipe) alors que l'installation est OK.
+        sdkmanager "platforms;${{ inputs.platform }}" "build-tools;${{ inputs.build-tools }}" > /dev/null < <(yes 2>/dev/null || true)
       shell: bash
 
     - name: Setup JDK
