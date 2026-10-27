@@ -1,7 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Bocal</string>
-    <string name="ecran_robinet_titre">Le robinet</string>
-    <string name="ecran_robinet_etat_aucun_bocal">Aucun bocal pour l\'instant.</string>
-    <string name="ecran_robinet_bouton_remplir">Remplir un bocal maintenant</string>
+    <string name="connexion_titre">Se connecter au Nextcloud familial</string>
+    <string name="connexion_url">Adresse du Nextcloud (https://…)</string>
+    <string name="connexion_utilisateur">Nom d\'utilisateur</string>
+    <string name="connexion_mot_de_passe">Mot de passe</string>
+    <string name="connexion_bouton">Se connecter</string>
+    <string name="deconnexion_bouton">Se déconnecter</string>
+    <string name="connexion_en_cours">Connexion en cours…</string>
+    <string name="deconnexion_en_cours">Déconnexion en cours…</string>
+    <string name="connexion_etat_connecte">Connecté : %1$s sur %2$s</string>
+    <string name="connexion_etat_deconnecte">Aucune connexion enregistrée.</string>
+    <string name="connexion_etat_illisible">La connexion enregistrée était illisible. Reconnecte-toi pour continuer.</string>
+    <string name="connexion_erreur_champs">Renseigner l\'adresse, l\'utilisateur et le mot de passe.</string>
+    <string name="connexion_erreur_url">Adresse invalide : le Nextcloud doit être en https://.</string>
+    <string name="connexion_erreur_pas_nextcloud">Cette adresse ne répond pas comme un Nextcloud.</string>
+    <string name="connexion_erreur_auth">Utilisateur ou mot de passe refusé par le serveur.</string>
+    <string name="connexion_erreur_reseau">Impossible de joindre le Nextcloud (réseau ?).</string>
+    <string name="connexion_erreur_serveur">Le serveur a refusé la création du token d\'application.</string>
+    <string name="dossier_titre">Dossier WhatsApp (lecture seule)</string>
+    <string name="dossier_bouton">Choisir le dossier WhatsApp</string>
+    <string name="dossier_bouton_oublier">Oublier ce dossier</string>
+    <string name="dossier_etat_aucun">Aucun dossier WhatsApp mémorisé.</string>
+    <string name="dossier_etat_enregistre">Dossier mémorisé : %1$s</string>
+    <string name="dossier_etat_perdu">Le dossier mémorisé n\'est plus accessible. Rechoisis-le.</string>
+    <string name="dossier_etat_illisible">Le rappel du dossier était abîmé. Rechoisis-le.</string>
+    <string name="dossier_erreur">Ce fichier ne peut pas être mémorisé comme dossier. Choisis le dossier lui-même.</string>
+    <string name="action_confirmer">Confirmer</string>
+    <string name="action_annuler">Annuler</string>
+    <string name="deconnexion_confirmation_titre">Se déconnecter ?</string>
+    <string name="deconnexion_confirmation_message">Le token sera révoqué sur le serveur et oublié sur ce téléphone. Tu devras retaper ton mot de passe pour te reconnecter.</string>
+    <string name="dossier_oublier_confirmation_titre">Oublier ce dossier ?</string>
+    <string name="dossier_oublier_confirmation_message">Rien n\'est supprimé sur le téléphone ni sur le serveur : Bocal perdra seulement l\'accès au dossier et il faudra le rechoisir.</string>
 </resources>

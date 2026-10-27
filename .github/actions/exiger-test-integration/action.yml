@@ -1,0 +1,40 @@
+name: Test d'intégration Nextcloud exigé
+description: >-
+  Exécute une classe de test d'intégration (fr.folzocorp.bocal.data.<test>) et
+  échoue si le test n'a pas réellement tourné (absent, sauté ou rouge) —
+  source unique du garde-fou, sinon le silence d'un skip vert avalerait la
+  preuve.
+inputs:
+  test:
+    description: Nom simple de la classe de test
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Gradle test — ${{ inputs.test }}
+      run: ./gradlew testDebugUnitTest --tests "fr.folzocorp.bocal.data.${{ inputs.test }}"
+      shell: bash
+
+    - name: "Garde-fou : ${{ inputs.test }} exécuté, pas sauté"
+      shell: bash
+      run: |
+        XML=$(find app/build/test-results -name 'TEST-*${{ inputs.test }}.xml' | head -1)
+        if [ -z "$XML" ]; then
+          echo "Aucun rapport XML de ${{ inputs.test }} — le test n'a pas tourné du tout."
+          exit 1
+        fi
+        if grep -q '<skipped' "$XML"; then
+          echo "${{ inputs.test }} a été SAUTÉ alors que NEXTCLOUD_URL est posé."
+          exit 1
+        fi
+        if grep -qE 'failures="[1-9]|errors="[1-9]|<failure|<error' "$XML"; then
+          echo "${{ inputs.test }} a ÉCHOUÉ — entêtes du rapport :"
+          head -5 "$XML"
+          exit 1
+        fi
+        if ! grep -qE 'tests="[1-9][0-9]*" skipped="0" failures="0" errors="0"' "$XML"; then
+          echo "Forme du rapport inattendue (compteurs de tests ?) — à vérifier :"
+          head -5 "$XML"
+          exit 1
+        fi
+        echo "${{ inputs.test }} : test exécuté et vert."

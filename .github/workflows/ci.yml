@@ -19,21 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install SDK packages (android-35, build-tools 35.0.0)
-        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
-
-      - name: Setup JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/prep-atelier
 
       - name: Assemble debug APK
         run: ./gradlew assembleDebug
@@ -49,21 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install SDK packages (android-35, build-tools 35.0.0)
-        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
-
-      - name: Setup JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/prep-atelier
 
       - name: Run lint
         run: ./gradlew lint
@@ -81,21 +53,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/prep-atelier
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
+      - name: Preuve grep anti-clair (critère C1 — cahier §7.2)
+        run: ./tools/audit-clear-text.sh
 
-      - name: Install SDK packages (android-35, build-tools 35.0.0)
-        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
-
-      - name: Setup JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Preuve grep permissions SAF (M0-E — cahier §4.1, zéro permission large)
+        run: ./tools/audit-saf-permissions.sh
 
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
@@ -108,6 +72,106 @@ jobs:
           path: app/build/reports/tests/**
           if-no-files-found: warn
 
+  nextcloud-integration:
+    name: Intégration Nextcloud (critère C1)
+    runs-on: ubuntu-latest
+    # Source unique du mot de passe admin CI : job env -> service ET étapes.
+    env:
+      NEXTCLOUD_URL: http://localhost:8080
+      NEXTCLOUD_ADMIN_USER: admin
+      # Mot de passe JETABLE : serveur Nextcloud ephemere du runner CI (localhost,
+      # detruit a la fin du job). Sans aucun rapport avec une infra reelle.
+      NEXTCLOUD_ADMIN_PASSWORD: bocal-ci-admin-2026
+    services:
+      nextcloud:
+        image: nextcloud:stable-apache
+        ports:
+          - 8080:80
+        env:
+          NEXTCLOUD_ADMIN_USER: ${{ env.NEXTCLOUD_ADMIN_USER }}
+          NEXTCLOUD_ADMIN_PASSWORD: ${{ env.NEXTCLOUD_ADMIN_PASSWORD }}
+          NEXTCLOUD_TRUSTED_DOMAINS: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prep-atelier
+
+      - name: Installation Nextcloud (sqlite via occ, sans dépendre de l'entrée auto)
+        run: |
+          for i in $(seq 1 60); do
+            CID=$(docker ps -q --filter ancestor=nextcloud:stable-apache | head -1)
+            [ -n "$CID" ] && break
+            sleep 2
+          done
+          docker exec "$CID" php occ maintenance:install \
+            --database sqlite \
+            --admin-user "$NEXTCLOUD_ADMIN_USER" \
+            --admin-pass "$NEXTCLOUD_ADMIN_PASSWORD" || true
+
+      - name: Attendre la fin de l'installation Nextcloud
+        run: |
+          for i in $(seq 1 120); do
+            if curl -sf http://localhost:8080/status.php | grep -q '"installed":true'; then
+              echo "Nextcloud installé après $((i * 2)) s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Nextcloud jamais prêt — log du conteneur :"
+          docker logs "$(docker ps -q --filter ancestor=nextcloud:stable-apache)" | tail -50
+          exit 1
+
+      - name: Version Nextcloud utilisée (image stable officielle)
+        run: |
+          echo "status.php :"
+          curl -sf http://localhost:8080/status.php
+          curl -sf http://localhost:8080/status.php | grep -o '"version":"[^"]*"' || true
+
+      - name: "Test d'intégration login (C1 : login/v2 200 → token app → Bearer 200 → révocation 200 → 401)"
+        uses: ./.github/actions/exiger-test-integration
+        with:
+          test: NextcloudIntegrationTest
+
+      - name: "Aller-retour bocal (sortie M0 — fixture §4.2 -> WhatsApp/<appareil>/AAAA-MM-JJ/ -> retéléchargement, sha256)"
+        uses: ./.github/actions/exiger-test-integration
+        env:
+          BOCAL_ROUNDTRIP_DIR: ${{ github.workspace }}/out/roundtrip
+        with:
+          test: BocalRoundTripIntegrationTest
+
+      - name: Preuve sha256SUMS de l'aller-retour (log + résumé d'étape)
+        shell: bash
+        run: |
+          SUMS="$GITHUB_WORKSPACE/out/roundtrip/sha256SUMS"
+          test -f "$SUMS" || { echo "sha256SUMS absent — preuve non produite."; exit 1; }
+          cat "$SUMS"
+          SRC=$(awk '/# SOURCE/,/# SERVEUR/' "$SUMS" | grep -E '^[0-9a-f]{64}' || true)
+          SRV=$(awk '/# SERVEUR/,/# VERDICT/' "$SUMS" | grep -E '^[0-9a-f]{64}' || true)
+          N=$(echo "$SRC" | grep -c . || true)
+          # Le compte attendu (17 sur la fixture) est asserté par le test lui-même.
+          if [ "$N" -ge 1 ] && [ "$SRC" = "$SRV" ]; then
+            VERDICT="ROUNDTRIP: $N/$N IDENTIQUES"
+          else
+            VERDICT="ROUNDTRIP: ÉCHEC ($N lignes, comparaison src/srv)"
+          fi
+          echo "$VERDICT"
+          {
+            echo "## Aller-retour bocal (sortie M0)"
+            echo ""
+            echo '```'
+            tail -n +2 "$SUMS"
+            echo '```'
+            echo "**Verdict : \`$VERDICT\`**"
+          } >> "$GITHUB_STEP_SUMMARY"
+          case "$VERDICT" in *IDENTIQUES*) exit 0;; *) exit 1;; esac
+
+      - name: Upload preuve sha256SUMS
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: roundtrip-sha256sums
+          path: out/roundtrip/sha256SUMS
+          if-no-files-found: error
+
   reproducible:
     name: Build reproductible (ebauche)
     runs-on: ubuntu-latest
@@ -119,23 +183,9 @@ jobs:
       APK: app/build/outputs/apk/debug/app-debug.apk
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install SDK packages (android-35, build-tools 35.0.0)
-        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" > /dev/null
-
-      - name: Setup JDK 21
-        uses: actions/setup-java@v4
+      - uses: ./.github/actions/prep-atelier
         with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          add-job-summary-as-pr-comment: never
+          gradle-summary-as-pr-comment: never
 
       - name: Build 1 (SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH, sans cache de build)
         run: |

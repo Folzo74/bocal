@@ -1,0 +1,38 @@
+name: Préparation atelier Android
+description: >-
+  SDK Android + JDK 21 + Gradle, versions figées de l'atelier M0-A (source
+  unique : inputs ci-dessous, cf. README « Build »).
+inputs:
+  platform:
+    description: Platform Android SDK à installer
+    default: 'android-35'
+  build-tools:
+    description: Build-tools Android SDK à installer
+    default: '35.0.0'
+  java-version:
+    description: Version JDK Temurin
+    default: '21'
+  gradle-summary-as-pr-comment:
+    description: Comportement du commentaire PR de setup-gradle (never pour les builds reproductibles)
+    default: 'always'
+runs:
+  using: composite
+  steps:
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v4
+
+    - name: Install SDK packages (platform + build-tools figées)
+      run: |
+        yes | sdkmanager "platforms;${{ inputs.platform }}" "build-tools;${{ inputs.build-tools }}" > /dev/null
+      shell: bash
+
+    - name: Setup JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '${{ inputs.java-version }}'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        add-job-summary-as-pr-comment: '${{ inputs.gradle-summary-as-pr-comment }}'
